@@ -34,7 +34,7 @@ func (dataClass *DataClass) AddItem(property Property) []Property {
 	return dataClass.Properties
 }
 
-var version = "0.0.4"
+var version = "0.0.5"
 
 var (
 	kotlinPackage = kingpin.Flag("package", "Kotlin package").Default("model").Short('p').String()
@@ -139,6 +139,7 @@ func parseTableDefinition(tableName string, db *sql.DB) DataClass {
 		columnAnnotation := "@get:Column(name=\"" + clnName.String + "\", "
 
 		dataType, length, nullable := convertType(
+			clnName.String,
 			clnType.String,
 			clnNull.String,
 			clnDefault.String,
@@ -153,6 +154,12 @@ func parseTableDefinition(tableName string, db *sql.DB) DataClass {
 			columnAnnotation += "nullable=true, "
 		} else {
 			columnAnnotation += "nullable=false, "
+		}
+
+		// remove is_ is dataType is boolean
+		// TODO Make sure clnType is of an int family
+		if dataType == "Boolean" && strings.HasPrefix(clnName.String, "is_") {
+			clnName.String = strings.Replace(clnName.String, "is_", "", 1)
 		}
 
 		annotation += " " + strings.TrimRight(columnAnnotation, ", ") + ") "
@@ -175,12 +182,18 @@ func parseTableDefinition(tableName string, db *sql.DB) DataClass {
 	return dataClass
 }
 
-func convertType(dbType string, dbNullable, dbDefault, column string) (dataType string, length int, nullable bool) {
+func convertType(dbClnName string, dbType string, dbNullable, dbDefault, column string) (dataType string, length int, nullable bool) {
 	// https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-type-conversions.html
 	length = -1
 	nullable = false
 	if dbNullable == "YES" {
 		nullable = true
+	}
+
+	// special boolean case
+	if strings.HasPrefix(dbClnName, "is_") {
+		dataType = "Boolean"
+		return dataType, length, nullable
 	}
 
 	switch {
